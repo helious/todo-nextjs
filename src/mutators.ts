@@ -25,54 +25,49 @@
 // on how Replicache syncs and resolves conflicts, but understanding that is not
 // required to get up and running.
 import { WriteTransaction } from "replicache";
-import { Todo, TodoUpdate } from "./todo";
 import { nanoid } from "nanoid";
 
 export type M = typeof mutators;
 
-export const mutators = {
-  updateTodo: async (tx: WriteTransaction, update: TodoUpdate) => {
-    // In a real app you may want to validate the incoming data is in fact a
-    // TodoUpdate. Check out https://www.npmjs.com/package/@rocicorp/rails for
-    // some heper functions to do this.
-    const prev = await tx.get<Todo>(update.id);
-    const next = { ...prev, ...update };
-    await tx.set(next.id, next);
-  },
+function randomTodo() {
+  return {
+    id: nanoid(40),
+    text: nanoid(40),
+    cutsheetEntityID: nanoid(40),
+    parentEntityID: nanoid(40),
+    completed: false,
+    cutsheetEntity: {
+      sort: 0,
+      type: null,
+      title: nanoid(15),
+      deleted: false,
+      stateType: nanoid(7),
+      description: null,
+      owningEntityID: nanoid(40),
+      storageMetadataID: nanoid(40),
+    },
+    tenantID: nanoid(6),
+    createdAt: nanoid(24),
+    updatedAt: nanoid(24),
+    updatedBy: "lambda",
+    updatedSource: "lambda",
+    deleted: false,
+    version: 1,
+    isActive: true,
+    modified: false,
+  };
+}
 
-  deleteTodo: async (tx: WriteTransaction, id: string) => {
-    await tx.del(id);
+export const mutators = {
+  createTodo: async (tx: WriteTransaction) => {
+    const todo = randomTodo();
+    await tx.set(todo.id, todo);
   },
 
   populate: async (tx: WriteTransaction, num: number) => {
     for (let i = 0; i < num; i++) {
-      const id = nanoid(40);
-      await tx.set(id, {
-        id,
-        text: `text: ${id}`,
-        cutsheetEntityID: nanoid(40),
-        parentEntityID: nanoid(40),
-        completed: false,
-        cutsheetEntity: {
-          sort: 0,
-          type: null,
-          title: nanoid(15),
-          deleted: false,
-          stateType: nanoid(7),
-          description: null,
-          owningEntityID: nanoid(40),
-          storageMetadataID: nanoid(40),
-        },
-        tenantID: nanoid(6),
-        createdAt: nanoid(24),
-        updatedAt: nanoid(24),
-        updatedBy: "lambda",
-        updatedSource: "lambda",
-        deleted: false,
-        version: 1,
-        isActive: true,
-        modified: false,
-      });
+      const todo = randomTodo();
+      await tx.set(todo.id, todo);
     }
   },
 };

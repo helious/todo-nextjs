@@ -1,10 +1,10 @@
-import React from "react";
-import { Replicache } from "replicache";
+import React, { useState } from "react";
+import { ReadTransaction, Replicache } from "replicache";
 
 import { M } from "../mutators";
-import { Todo } from "src/todo";
+import { useSubscribe } from "replicache-react";
 
-async function write(rep: Replicache<M>) {
+async function populate(rep: Replicache<M>) {
   const num = 15_000;
   const t0 = Date.now();
   await rep.mutate.populate(num);
@@ -12,55 +12,57 @@ async function write(rep: Replicache<M>) {
   alert(`Populated ${num} in ${t1 - t0}ms`);
 }
 
-async function read(rep: Replicache<M>) {
-  let count = 0;
-  let idBytes = 0;
-  const start = Date.now();
-  const d = await rep.query(async (tx) => {
-    for await (const e of tx.scan().entries()) {
-      count++;
-      idBytes += (e[0] as string).length + (e[1] as Todo).id.length;
-    }
-    return {
-      count,
-      idBytes,
-    };
-  });
-  const end = Date.now();
-  const time = end - start;
-  alert(
-    `Scanned ${d.count} with ${d.idBytes} id bytes in ${time}ms` +
-      "\n\n" +
-      `Average: ${d.count / time} items per ms, or roughly ${
-        ((d.count * 800) / time / 1000 / 1000) * 1000
-      } MB per second`
-  );
+async function write(rep: Replicache<M>) {
+  await rep.mutate.createTodo();
 }
 
-async function readToArray(rep: Replicache<M>) {
+async function readToArray(tx: ReadTransaction) {
   const start = Date.now();
-  const d = await rep.query(async (tx) => {
-    return await tx.scan().entries().toArray();
-  });
+  const d = await tx.scan().entries().toArray();
   const end = Date.now();
   const time = end - start;
-  alert(
-    `Read ${d.length} in ${time}ms` +
-      "\n\n" +
-      `Average: ${d.length / time} items per ms, or roughly ${
-        ((d.length * 800) / time / 1000 / 1000) * 1000
-      } MB per second`
-  );
+  return {
+    d,
+    time,
+  };
 }
 
 // This is the top-level component for our app.
 const App = ({ rep }: { rep: Replicache<M> }) => {
+  const [s, setState] = useState({});
+  const arrayResult = useSubscribe(rep, readToArray, {
+    default: null,
+    dependencies: [s],
+  });
+
+  const forceUpdate = () => {
+    setState({});
+  };
+
+  if (!arrayResult) {
+    return null;
+  }
+
+  const { d: arrayData, time: arrayTime } = arrayResult;
+
   return (
-    <div>
-      <button onClick={() => write(rep)}>Write</button>&nbsp;
-      <button onClick={() => read(rep)}>Read</button>&nbsp;
-      <button onClick={() => readToArray(rep)}>Read to Array</button>
-    </div>
+    <>
+      <div>
+        <button onClick={() => populate(rep)}>Populate</button>&nbsp;
+        <button onClick={() => write(rep)}>Write</button>&nbsp;
+        <button onClick={() => forceUpdate()}>Read</button>
+      </div>
+      <div>
+        <h2>ReadToArray</h2>
+        <p>
+          {arrayData.length} items, {arrayTime}ms
+          <br />
+          {arrayData.length / arrayTime} items/ms,{" "}
+          {(((arrayData.length / arrayTime) * 800) / 1024 / 1024) * 1000} MB/s
+          <br />~{JSON.stringify(arrayData).length / 1024 / 1024} MB result
+        </p>
+      </div>
+    </>
   );
 };
 
