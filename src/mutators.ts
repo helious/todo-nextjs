@@ -46,7 +46,8 @@ export const mutators = {
 
   populate: async (tx: WriteTransaction, num: number) => {
     for (let i = 0; i < num; i++) {
-      const id = nanoid(40);
+      const id = `CSI:${nanoid(40)}`;
+
       await tx.set(id, {
         id,
         text: `text: ${id}`,
