@@ -25,7 +25,8 @@
 // on how Replicache syncs and resolves conflicts, but understanding that is not
 // required to get up and running.
 import { WriteTransaction } from "replicache";
-import { Todo, listTodos, TodoUpdate } from "./todo";
+import { Todo, TodoUpdate } from "./todo";
+import { nanoid } from "nanoid";
 
 export type M = typeof mutators;
 
@@ -43,20 +44,35 @@ export const mutators = {
     await tx.del(id);
   },
 
-  // This mutator creates a new todo, assigning the next available sort value.
-  //
-  // If two clients create new todos concurrently, they both might choose the
-  // same sort value locally (optimistically). That's fine because later when
-  // the mutator re-runs on the server the two todos will get unique values.
-  //
-  // Replicache will automatically sync the change back to the clients,
-  // reconcile any changes that happened client-side in the meantime, and update
-  // the UI to reflect the changes.
-  createTodo: async (tx: WriteTransaction, todo: Omit<Todo, "sort">) => {
-    const todos = await listTodos(tx);
-    todos.sort((t1, t2) => t1.sort - t2.sort);
-
-    const maxSort = todos.pop()?.sort ?? 0;
-    await tx.set(todo.id, { ...todo, sort: maxSort + 1 });
+  populate: async (tx: WriteTransaction, num: number) => {
+    for (let i = 0; i < num; i++) {
+      const id = nanoid(40);
+      await tx.set(id, {
+        id,
+        text: `text: ${id}`,
+        cutsheetEntityID: nanoid(40),
+        parentEntityID: nanoid(40),
+        completed: false,
+        cutsheetEntity: {
+          sort: 0,
+          type: null,
+          title: nanoid(15),
+          deleted: false,
+          stateType: nanoid(7),
+          description: null,
+          owningEntityID: nanoid(40),
+          storageMetadataID: nanoid(40),
+        },
+        tenantID: nanoid(6),
+        createdAt: nanoid(24),
+        updatedAt: nanoid(24),
+        updatedBy: "lambda",
+        updatedSource: "lambda",
+        deleted: false,
+        version: 1,
+        isActive: true,
+        modified: false,
+      });
+    }
   },
 };

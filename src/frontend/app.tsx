@@ -1,60 +1,65 @@
-import { nanoid } from "nanoid";
 import React from "react";
 import { Replicache } from "replicache";
-import { useSubscribe } from "replicache-react";
 
 import { M } from "../mutators";
-import { listTodos, TodoUpdate } from "../todo";
+import { Todo } from "src/todo";
 
-import Header from "./header";
-import MainSection from "./main-section";
-import "todomvc-app-css/index.css";
+async function write(rep: Replicache<M>) {
+  const num = 15_000;
+  const t0 = Date.now();
+  await rep.mutate.populate(num);
+  const t1 = Date.now();
+  alert(`Populated ${num} in ${t1 - t0}ms`);
+}
+
+async function read(rep: Replicache<M>) {
+  let count = 0;
+  let idBytes = 0;
+  const start = Date.now();
+  const d = await rep.query(async (tx) => {
+    for await (const e of tx.scan().entries()) {
+      count++;
+      idBytes += (e[0] as string).length + (e[1] as Todo).id.length;
+    }
+    return {
+      count,
+      idBytes,
+    };
+  });
+  const end = Date.now();
+  const time = end - start;
+  alert(
+    `Scanned ${d.count} with ${d.idBytes} id bytes in ${time}ms` +
+      "\n\n" +
+      `Average: ${d.count / time} items per ms, or roughly ${
+        ((d.count * 800) / time / 1000 / 1000) * 1000
+      } MB per second`
+  );
+}
+
+async function readToArray(rep: Replicache<M>) {
+  const start = Date.now();
+  const d = await rep.query(async (tx) => {
+    return await tx.scan().entries().toArray();
+  });
+  const end = Date.now();
+  const time = end - start;
+  alert(
+    `Read ${d.length} in ${time}ms` +
+      "\n\n" +
+      `Average: ${d.length / time} items per ms, or roughly ${
+        ((d.length * 800) / time / 1000 / 1000) * 1000
+      } MB per second`
+  );
+}
 
 // This is the top-level component for our app.
 const App = ({ rep }: { rep: Replicache<M> }) => {
-  // Subscribe to all todos and sort them.
-  const todos = useSubscribe(rep, listTodos, { default: [] });
-  todos.sort((a, b) => a.sort - b.sort);
-
-  // Define event handlers and connect them to Replicache mutators. Each
-  // of these mutators runs immediately (optimistically) locally, then runs
-  // again on the server-side automatically.
-  const handleNewItem = (text: string) =>
-    rep.mutate.createTodo({
-      id: nanoid(),
-      text,
-      completed: false,
-    });
-
-  const handleUpdateTodo = (update: TodoUpdate) =>
-    rep.mutate.updateTodo(update);
-
-  const handleDeleteTodos = (ids: string[]) => {
-    for (const id of ids) {
-      void rep.mutate.deleteTodo(id);
-    }
-  };
-
-  const handleCompleteTodos = (completed: boolean, ids: string[]) => {
-    for (const id of ids) {
-      void rep.mutate.updateTodo({
-        id,
-        completed,
-      });
-    }
-  };
-
-  // Render app.
-
   return (
     <div>
-      <Header onNewItem={handleNewItem} />
-      <MainSection
-        todos={todos}
-        onUpdateTodo={handleUpdateTodo}
-        onDeleteTodos={handleDeleteTodos}
-        onCompleteTodos={handleCompleteTodos}
-      />
+      <button onClick={() => write(rep)}>Write</button>&nbsp;
+      <button onClick={() => read(rep)}>Read</button>&nbsp;
+      <button onClick={() => readToArray(rep)}>Read to Array</button>
     </div>
   );
 };
